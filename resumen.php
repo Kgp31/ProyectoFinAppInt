@@ -11,7 +11,7 @@ if ($conn->connect_error) {
     die("Conexión fallida: " . $conn->connect_error);
 }
 
-$sql = "SELECT * FROM productos"; // Ajusta la tabla y los campos según tu base de datos
+$sql = "SELECT * FROM productos"; // Pasamos todo a tablas.
 $result = $conn->query($sql);
 
 if ($result->num_rows > 0) {
