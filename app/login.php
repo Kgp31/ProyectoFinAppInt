@@ -23,7 +23,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($password == $user['password']) {
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
-            header("Location: http://localhost:8888/app/inventario.php");
+
+            // Redirigir según el rol
+            if ($user['role'] == 'admin') {
+                header("Location: http://localhost:8888/app/inventario.php");
+            } elseif ($user['role'] == 'read_only') {
+                header("Location: http://localhost:8888/app/usuarios.php");
+            }
             exit();
         } else {
             header("Location: http://localhost:8888/public/login.html?error=1");
