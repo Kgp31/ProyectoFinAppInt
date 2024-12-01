@@ -1,54 +1,57 @@
 <?php
 session_start();
-require_once '../controllers/ProductController.php';  // Incluir el controlador de productos
+require_once '../controllers/ProductController.php';
+require_once '../middlewares/authmiddleware.php';
 
-// Obtener la URI solicitada
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$base_path = '/inventariomizaki/public/';
+$base_path = '/public/';
 $uri = str_replace($base_path, '', $uri);
 
-// Verificar la ruta y redirigir a login.php si es necesario
-require_once '../middlewares/authmiddleware.php'; 
-checkAuth();
+if ($uri !== 'login' && $uri !== '') {
+    checkAuth();
+}
 
-// Rutas del controlador de productos
 switch ($uri) {
-    case 'productos':  // Muestra la lista de productos
+    case 'productos':
         $controller = new ProductController();
-        $controller->index();  // Llama a la función index del controlador
+        $controller->index();
         break;
 
-    case 'productos/crear':  // Formulario de creación de producto
+    case 'productos/crear':
         $controller = new ProductController();
-        $controller->create();  // Llama a la función create del controlador
+        $controller->create();
         break;
 
-    case 'productos/editar':  // Formulario de edición de producto
+    case 'productos/editar':
         if (isset($_GET['id'])) {
             $controller = new ProductController();
-            $controller->edit($_GET['id']);  // Llama a la función edit pasando el ID
+            $controller->edit($_GET['id']);
         } else {
-            http_response_code(400);  // Error si no se pasa el ID
+            http_response_code(400);
             echo "ID de producto no proporcionado.";
         }
         break;
 
-    case 'productos/eliminar':  // Eliminar producto
+    case 'productos/eliminar':
         if (isset($_GET['id'])) {
             $controller = new ProductController();
-            $controller->delete($_GET['id']);  // Llama a la función delete pasando el ID
+            $controller->delete($_GET['id']);
         } else {
-            http_response_code(400);  // Error si no se pasa el ID
+            http_response_code(400);
             echo "ID de producto no proporcionado.";
         }
         break;
 
-    case 'login.html':  // Ruta para login
-        include '../app/login.php';  // Incluye la página de login
+    case 'login':
+        include '../app/login.php';
+        break;
+
+    case '':
+        header("Location: http://localhost:8888/public/login.html");
         break;
 
     default:
-        http_response_code(404);  // Página no encontrada
+        http_response_code(404);
         echo "Página no encontrada.";
         break;
 }
