@@ -152,6 +152,10 @@ if (isset($_GET['eliminar'])) {
 $sql_usuarios = "SELECT * FROM usuarios";
 $result_usuarios = $conn->query($sql_usuarios);
 
+// Obtener historial de modificaciones
+$sql_historial = "SELECT h.*, p.nombre as producto_nombre FROM historial_modificaciones h JOIN productos p ON h.producto_id = p.id ORDER BY h.fecha DESC";
+$result_historial = $conn->query($sql_historial);
+
 $conn->close();
 ?>
 
@@ -270,7 +274,7 @@ $conn->close();
         .logout-button:hover {
             background-color: #da190b;
         }
-        .add-product-button, .add-user-button, .show-users-button {
+        .add-product-button, .add-user-button, .show-users-button, .show-history-button {
             margin-bottom: 20px;
             padding: 10px 20px;
             background-color: #007BFF;
@@ -293,6 +297,12 @@ $conn->close();
         }
         .show-users-button:hover {
             background-color: #138496;
+        }
+        .show-history-button {
+            background-color: #ffc107;
+        }
+        .show-history-button:hover {
+            background-color: #e0a800;
         }
         .modal {
             display: none;
@@ -393,6 +403,7 @@ $conn->close();
         <h2 class="titulo-inventario">Inventario Mizaki Campestre (prototipo)</h2>
         <div>
             <button class="show-users-button" onclick="openUserListModal()">Usuarios</button>
+            <button class="show-history-button" onclick="openHistoryModal()">Historial</button>
             <a href="logout.php" class="logout-button">Cerrar sesión</a>
         </div>
     </div>
@@ -462,8 +473,8 @@ $conn->close();
                         <div class="input-group">
                             <label for="password">Contraseña</label>
                             <input type="password" name="password" id="password" required>
-                        </div>
-                        <div class="input-group">
+                            </div>
+                            <div class="input-group">
                             <label for="role">Rol</label>
                             <select name="role" id="role" required>
                                 <option value="admin">Admin</option>
@@ -483,7 +494,7 @@ $conn->close();
                     <table>
                         <thead>
                             <tr>
-                            <th>Nombre de Usuario</th>
+                                <th>Nombre de Usuario</th>
                                 <th>Rol</th>
                                 <th>Acciones</th>
                             </tr>
@@ -523,6 +534,36 @@ $conn->close();
                         </div>
                         <button type="submit" name="cambiar_contraseña">Cambiar Contraseña</button>
                     </form>
+                </div>
+            </div>
+
+            <!-- Modal Historial de Modificaciones -->
+            <div id="historyModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeHistoryModal()">&times;</span>
+                    <h3>Historial de Modificaciones</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Usuario</th>
+                                <th>Cantidad Anterior</th>
+                                <th>Cantidad Nueva</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php while ($historial = $result_historial->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($historial['producto_nombre']); ?></td>
+                                    <td><?php echo htmlspecialchars($historial['usuario']); ?></td>
+                                    <td><?php echo htmlspecialchars($historial['cantidad_anterior']); ?></td>
+                                    <td><?php echo htmlspecialchars($historial['cantidad_nueva']); ?></td>
+                                    <td><?php echo htmlspecialchars($historial['fecha']); ?></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -609,6 +650,14 @@ $conn->close();
             document.getElementById('changePasswordModal').style.display = 'none';
         }
 
+        function openHistoryModal() {
+            document.getElementById('historyModal').style.display = 'block';
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
         function editProduct(id, nombre, descripcion, cantidad, precio, cantidad_minima, cantidad_maxima) {
             document.getElementById('productModal').style.display = 'block';
             document.getElementById('productId').value = id;
@@ -649,6 +698,9 @@ $conn->close();
             }
             if (event.target == document.getElementById('changePasswordModal')) {
                 document.getElementById('changePasswordModal').style.display = "none";
+            }
+            if (event.target == document.getElementById('historyModal')) {
+                document.getElementById('historyModal').style.display = "none";
             }
         }
     </script>
