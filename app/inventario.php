@@ -22,36 +22,88 @@ if ($conn->connect_error) {
 
 // Agregar o editar producto
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $nombre = $conn->real_escape_string($_POST['nombre']);
-    $descripcion = $conn->real_escape_string($_POST['descripcion']);
-    $cantidad = (float)$_POST['cantidad'];
-    $precio = (float)$_POST['precio'];
-    $cantidad_minima = (float)$_POST['cantidad_minima'];
-    $cantidad_maxima = (float)$_POST['cantidad_maxima'];
-    $imagen = null;
+    if (isset($_POST['agregar_producto']) || isset($_POST['editar_producto'])) {
+        $nombre = $conn->real_escape_string($_POST['nombre']);
+        $descripcion = $conn->real_escape_string($_POST['descripcion']);
+        $cantidad = (float)$_POST['cantidad'];
+        $precio = (float)$_POST['precio'];
+        $cantidad_minima = (float)$_POST['cantidad_minima'];
+        $cantidad_maxima = (float)$_POST['cantidad_maxima'];
+        $imagen = null;
 
-    if (!empty($_FILES['imagen']['name'])) {
-        $imagen = 'imagenes/' . basename($_FILES['imagen']['name']);
-        move_uploaded_file($_FILES['imagen']['tmp_name'], $imagen);
-    }
-
-    if ($cantidad > $cantidad_maxima) {
-        $mensaje = "La cantidad debe estar entre $cantidad_minima y $cantidad_maxima.";
-    } else {
-        if (isset($_POST['agregar_producto'])) {
-            $stmt = $conn->prepare("INSERT INTO productos (nombre, descripcion, cantidad, precio, cantidad_minima, cantidad_maxima, imagen) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssiddis", $nombre, $descripcion, $cantidad, $precio, $cantidad_minima, $cantidad_maxima, $imagen);
-        } elseif (isset($_POST['editar_producto'])) {
-            $id = (int)$_POST['id'];
-            $stmt = $conn->prepare("UPDATE productos SET nombre=?, descripcion=?, cantidad=?, precio=?, cantidad_minima=?, cantidad_maxima=?, imagen=? WHERE id=?");
-            $stmt->bind_param("ssiddisi", $nombre, $descripcion, $cantidad, $precio, $cantidad_minima, $cantidad_maxima, $imagen, $id);
+        if (!empty($_FILES['imagen']['name'])) {
+            $imagen = 'imagenes/' . basename($_FILES['imagen']['name']);
+            move_uploaded_file($_FILES['imagen']['tmp_name'], $imagen);
         }
 
+        if ($cantidad > $cantidad_maxima) {
+            $mensaje = "La cantidad debe estar entre $cantidad_minima y $cantidad_maxima.";
+        } else {
+            if (isset($_POST['agregar_producto'])) {
+                $stmt = $conn->prepare("INSERT INTO productos (nombre, descripcion, cantidad, precio, cantidad_minima, cantidad_maxima, imagen) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssiddis", $nombre, $descripcion, $cantidad, $precio, $cantidad_minima, $cantidad_maxima, $imagen);
+            } elseif (isset($_POST['editar_producto'])) {
+                $id = (int)$_POST['id'];
+                $stmt = $conn->prepare("UPDATE productos SET nombre=?, descripcion=?, cantidad=?, precio=?, cantidad_minima=?, cantidad_maxima=?, imagen=? WHERE id=?");
+                $stmt->bind_param("ssiddisi", $nombre, $descripcion, $cantidad, $precio, $cantidad_minima, $cantidad_maxima, $imagen, $id);
+            }
+
+            if ($stmt->execute()) {
+                header("Location: inventario.php");
+                exit();
+            } else {
+                $mensaje = "Error: " . $conn->error;
+            }
+        }
+    } elseif (isset($_POST['crear_usuario'])) {
+        // Lógica para crear un nuevo usuario
+        $username = $conn->real_escape_string($_POST['username']);
+        $password = md5($_POST['password']);
+        $role = $conn->real_escape_string($_POST['role']);
+
+        $stmt = $conn->prepare("INSERT INTO usuarios (username, password, role) VALUES (?, ?, ?)");
+        $stmt->bind_param("sss", $username, $password, $role);
+
         if ($stmt->execute()) {
+            $_SESSION['mensaje'] = "Usuario creado exitosamente.";
             header("Location: inventario.php");
             exit();
         } else {
             $mensaje = "Error: " . $conn->error;
+        }
+    } elseif (isset($_POST['cambiar_contraseña'])) {
+        // Lógica para cambiar la contraseña de un usuario
+        $user_id = (int)$_POST['user_id'];
+        $new_password = md5($_POST['new_password']);
+
+        $stmt = $conn->prepare("UPDATE usuarios SET password=? WHERE id=?");
+        $stmt->bind_param("si", $new_password, $user_id);
+
+        if ($stmt->execute()) {
+            $_SESSION['mensaje'] = "Contraseña actualizada exitosamente.";
+            header("Location: inventario.php");
+            exit();
+        } else {
+            $mensaje = "Error: " . $conn->error;
+        }
+    } elseif (isset($_POST['eliminar_usuario'])) {
+        // Lógica para eliminar un usuario
+        $user_id = (int)$_POST['user_id'];
+        $username = $conn->real_escape_string($_POST['username']);
+
+        if ($username !== 'admin') {
+            $stmt = $conn->prepare("DELETE FROM usuarios WHERE id=?");
+            $stmt->bind_param("i", $user_id);
+
+            if ($stmt->execute()) {
+                $_SESSION['mensaje'] = "Usuario eliminado exitosamente.";
+                header("Location: inventario.php");
+                exit();
+            } else {
+                $mensaje = "Error: " . $conn->error;
+            }
+        } else {
+            $mensaje = "No se puede eliminar el usuario 'admin'.";
         }
     }
 }
@@ -96,6 +148,10 @@ if (isset($_GET['eliminar'])) {
     exit();
 }
 
+// Obtener lista de usuarios
+$sql_usuarios = "SELECT * FROM usuarios";
+$result_usuarios = $conn->query($sql_usuarios);
+
 $conn->close();
 ?>
 
@@ -123,6 +179,7 @@ $conn->close();
         }
         .header-container img {
             height: 50px;
+            cursor: pointer;
         }
         .titulo-inventario {
             font-size: 24px;
@@ -213,7 +270,7 @@ $conn->close();
         .logout-button:hover {
             background-color: #da190b;
         }
-        .add-product-button {
+        .add-product-button, .add-user-button, .show-users-button {
             margin-bottom: 20px;
             padding: 10px 20px;
             background-color: #007BFF;
@@ -224,6 +281,18 @@ $conn->close();
         }
         .add-product-button:hover {
             background-color: #0056b3;
+        }
+        .add-user-button {
+            background-color: #28a745;
+        }
+        .add-user-button:hover {
+            background-color: #218838;
+        }
+        .show-users-button {
+            background-color: #17a2b8;
+        }
+        .show-users-button:hover {
+            background-color: #138496;
         }
         .modal {
             display: none;
@@ -318,9 +387,14 @@ $conn->close();
 </head>
 <body>
     <div class="header-container">
-        <img src="https://i.postimg.cc/h4bhp1mJ/Mizaki-Ajuste-Logotipo-Mesa-de-trabajo-1.png" alt="Logotipo de Mizaki Campestre" class="logotipo">
+        <a href="https://www.mizaki.mx">
+            <img src="https://i.postimg.cc/h4bhp1mJ/Mizaki-Ajuste-Logotipo-Mesa-de-trabajo-1.png" alt="Logotipo de Mizaki Campestre" class="logotipo">
+        </a>
         <h2 class="titulo-inventario">Inventario Mizaki Campestre (prototipo)</h2>
-        <a href="logout.php" class="logout-button">Cerrar sesión</a>
+        <div>
+            <button class="show-users-button" onclick="openUserListModal()">Usuarios</button>
+            <a href="logout.php" class="logout-button">Cerrar sesión</a>
+        </div>
     </div>
 
     <div class="inventario-container">
@@ -332,12 +406,15 @@ $conn->close();
                 </form>
             </div>
 
-            <button class="add-product-button" onclick="openModal()">Agregar Producto</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="add-product-button" onclick="openProductModal()">Agregar Producto</button>
+                <button class="add-user-button" onclick="openUserModal()">Agregar Usuario</button>
+            </div>
 
-            <!-- Modal Formulario -->
-            <div id="modalForm" class="modal">
+            <!-- Modal Formulario Producto -->
+            <div id="productModal" class="modal">
                 <div class="modal-content">
-                    <span class="close" onclick="closeModal()">&times;</span>
+                    <span class="close" onclick="closeProductModal()">&times;</span>
                     <form id="productForm" action="inventario.php" method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="id" id="productId" value="">
                         <div class="input-group">
@@ -369,6 +446,82 @@ $conn->close();
                             <input type="file" name="imagen" id="imagen">
                         </div>
                         <button type="submit" name="agregar_producto" id="submitButton">Agregar Producto</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modal Formulario Usuario -->
+            <div id="userModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeUserModal()">&times;</span>
+                    <form id="userForm" action="inventario.php" method="POST">
+                        <div class="input-group">
+                            <label for="username">Nombre de Usuario</label>
+                            <input type="text" name="username" id="username" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="password">Contraseña</label>
+                            <input type="password" name="password" id="password" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="role">Rol</label>
+                            <select name="role" id="role" required>
+                                <option value="admin">Admin</option>
+                                <option value="read_only">Read Only</option>
+                            </select>
+                        </div>
+                        <button type="submit" name="crear_usuario">Crear Usuario</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modal Lista de Usuarios -->
+            <div id="userListModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeUserListModal()">&times;</span>
+                    <h3>Lista de Usuarios</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                            <th>Nombre de Usuario</th>
+                                <th>Rol</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php while ($user = $result_usuarios->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($user['username']); ?></td>
+                                    <td><?php echo htmlspecialchars($user['role']); ?></td>
+                                    <td>
+                                        <button onclick="openChangePasswordModal(<?php echo $user['id']; ?>)">Cambiar Contraseña</button>
+                                        <?php if ($user['username'] !== 'admin'): ?>
+                                            <form action="inventario.php" method="POST" style="display:inline;">
+                                                <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                                <input type="hidden" name="username" value="<?php echo $user['username']; ?>">
+                                                <button type="submit" name="eliminar_usuario">Eliminar</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Modal Cambiar Contraseña -->
+            <div id="changePasswordModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeChangePasswordModal()">&times;</span>
+                    <h3>Cambiar Contraseña</h3>
+                    <form id="changePasswordForm" action="inventario.php" method="POST">
+                        <input type="hidden" name="user_id" id="changePasswordUserId" value="">
+                        <div class="input-group">
+                            <label for="new_password">Nueva Contraseña</label>
+                            <input type="password" name="new_password" id="new_password" required>
+                        </div>
+                        <button type="submit" name="cambiar_contraseña">Cambiar Contraseña</button>
                     </form>
                 </div>
             </div>
@@ -414,24 +567,50 @@ $conn->close();
         </div>
     </div>
 
-    <?php if (isset($mensaje)): ?>
-        <p class="error-message"><?php echo $mensaje; ?></p>
+    <?php if (isset($_SESSION['mensaje'])): ?>
+        <p class="error-message"><?php echo $_SESSION['mensaje']; unset($_SESSION['mensaje']); ?></p>
     <?php endif; ?>
 
     <script>
-        function openModal() {
-            document.getElementById('modalForm').style.display = 'block';
+        function openProductModal() {
+            document.getElementById('productModal').style.display = 'block';
             document.getElementById('productForm').reset();
             document.getElementById('submitButton').name = 'agregar_producto';
             document.getElementById('submitButton').textContent = 'Agregar Producto';
         }
 
-        function closeModal() {
-            document.getElementById('modalForm').style.display = 'none';
+        function closeProductModal() {
+            document.getElementById('productModal').style.display = 'none';
+        }
+
+        function openUserModal() {
+            document.getElementById('userModal').style.display = 'block';
+            document.getElementById('userForm').reset();
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        function openUserListModal() {
+            document.getElementById('userListModal').style.display = 'block';
+        }
+
+        function closeUserListModal() {
+            document.getElementById('userListModal').style.display = 'none';
+        }
+
+        function openChangePasswordModal(userId) {
+            document.getElementById('changePasswordUserId').value = userId;
+            document.getElementById('changePasswordModal').style.display = 'block';
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'none';
         }
 
         function editProduct(id, nombre, descripcion, cantidad, precio, cantidad_minima, cantidad_maxima) {
-            document.getElementById('modalForm').style.display = 'block';
+            document.getElementById('productModal').style.display = 'block';
             document.getElementById('productId').value = id;
             document.getElementById('nombre').value = nombre;
             document.getElementById('descripcion').value = descripcion;
@@ -459,8 +638,17 @@ $conn->close();
         }
 
         window.onclick = function(event) {
-            if (event.target == document.getElementById('modalForm')) {
-                document.getElementById('modalForm').style.display = "none";
+            if (event.target == document.getElementById('productModal')) {
+                document.getElementById('productModal').style.display = "none";
+            }
+            if (event.target == document.getElementById('userModal')) {
+                document.getElementById('userModal').style.display = "none";
+            }
+            if (event.target == document.getElementById('userListModal')) {
+                document.getElementById('userListModal').style.display = "none";
+            }
+            if (event.target == document.getElementById('changePasswordModal')) {
+                document.getElementById('changePasswordModal').style.display = "none";
             }
         }
     </script>
