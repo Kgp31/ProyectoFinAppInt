@@ -25,10 +25,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['actualizar_cantidad'])
     $id = (int)$_POST['id'];
     $cantidad = (float)$_POST['cantidad'];
 
+    // Obtener la cantidad anterior
+    $result = $conn->query("SELECT cantidad FROM productos WHERE id=$id");
+    $producto = $result->fetch_assoc();
+    $cantidad_anterior = $producto['cantidad'];
+
     $stmt = $conn->prepare("UPDATE productos SET cantidad=? WHERE id=?");
     $stmt->bind_param("di", $cantidad, $id);
 
     if ($stmt->execute()) {
+        // Registrar en el historial
+        $usuario = isset($_SESSION['username']) ? $_SESSION['username'] : 'Desconocido';
+        $stmt_historial = $conn->prepare("INSERT INTO historial_modificaciones (producto_id, usuario, cantidad_anterior, cantidad_nueva) VALUES (?, ?, ?, ?)");
+        $stmt_historial->bind_param("isdd", $id, $usuario, $cantidad_anterior, $cantidad);
+        $stmt_historial->execute();
+
         header("Location: usuarios.php");
         exit();
     } else {
@@ -66,11 +77,10 @@ $conn->close();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventario de Usuarios</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
             background-color: #f0f2f5;
         }
         .header-container {
@@ -226,17 +236,14 @@ $conn->close();
         <h2 class="titulo-inventario">Inventario Mizaki Campestre (Usuarios)</h2>
         <a href="logout.php" class="logout-button">Cerrar sesión</a>
     </div>
-
     <div class="inventario-container">
         <div class="form-list-container">
             <div class="search-container">
                 <form action="usuarios.php" method="GET">
-                    <input type="text" name="buscar" placeholder="Buscar producto..." value="<?php echo htmlspecialchars($buscar); ?>">
+                    <input type="text" name="buscar" placeholder="Buscar productos..." value="<?php echo htmlspecialchars($buscar); ?>">
                     <button type="submit">Buscar</button>
                 </form>
             </div>
-
-            <!-- Lista de productos -->
             <div class="productos-container">
                 <div class="productos-grid">
                     <?php while ($row = $result->fetch_assoc()): 
@@ -255,12 +262,12 @@ $conn->close();
                     ?>
                         <div class="producto-card" data-cantidad="<?php echo $color; ?>">
                             <img src="<?php echo $row['imagen'] ? $row['imagen'] : 'https://via.placeholder.com/150'; ?>" alt="Imagen de producto" class="producto-img">
-                            <h3><?php echo $row['nombre']; ?></h3>
-                            <p><?php echo $row['descripcion']; ?></p>
+                            <h3><?php echo htmlspecialchars($row['nombre']); ?></h3>
+                            <p><?php echo htmlspecialchars($row['descripcion']); ?></p>
                             <p><strong>Precio:</strong> $<?php echo number_format($row['precio'], 2); ?></p>
-                            <p><strong>Cantidad:</strong> <?php echo $row['cantidad']; ?></p>
-                            <p><strong>Cantidad mínima:</strong> <?php echo $row['cantidad_minima']; ?></p>
-                            <p><strong>Cantidad máxima:</strong> <?php echo $row['cantidad_maxima']; ?></p>
+                            <p><strong>Cantidad:</strong> <?php echo htmlspecialchars($row['cantidad']); ?></p>
+                            <p><strong>Cantidad mínima:</strong> <?php echo htmlspecialchars($row['cantidad_minima']); ?></p>
+                            <p><strong>Cantidad máxima:</strong> <?php echo htmlspecialchars($row['cantidad_maxima']); ?></p>
                             <form action="usuarios.php" method="POST">
                                 <input type="hidden" name="id" value="<?php echo $row['id']; ?>">
                                 <div class="input-group">
