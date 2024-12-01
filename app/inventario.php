@@ -1,14 +1,9 @@
 <?php
 // Incluir el middleware para verificar la autenticación
 include '../middlewares/authmiddleware.php';
-
-// Iniciar la sesión para manejar las variables de sesión
 session_start();
+checkAuth();
 
-// Verificar si el usuario está autenticado
-checkAuth(); // Llamar a la función de verificación de autenticación
-
-// Mostrar errores en pantalla para depuración
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -25,16 +20,16 @@ if ($conn->connect_error) {
     die("Conexión fallida: " . $conn->connect_error);
 }
 
-// Agregar producto
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['agregar_producto'])) {
+// Agregar o editar producto
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nombre = $conn->real_escape_string($_POST['nombre']);
     $descripcion = $conn->real_escape_string($_POST['descripcion']);
     $cantidad = (int)$_POST['cantidad'];
     $precio = (float)$_POST['precio'];
     $cantidad_minima = (int)$_POST['cantidad_minima'];
     $cantidad_maxima = (int)$_POST['cantidad_maxima'];
-
     $imagen = null;
+
     if (!empty($_FILES['imagen']['name'])) {
         $imagen = 'imagenes/' . basename($_FILES['imagen']['name']);
         move_uploaded_file($_FILES['imagen']['tmp_name'], $imagen);
@@ -43,9 +38,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['agregar_producto'])) {
     if ($cantidad < $cantidad_minima || $cantidad > $cantidad_maxima) {
         $mensaje = "La cantidad debe estar entre $cantidad_minima y $cantidad_maxima.";
     } else {
-        $sql = "INSERT INTO productos (nombre, descripcion, cantidad, precio, cantidad_minima, cantidad_maxima, imagen) 
-                VALUES ('$nombre', '$descripcion', $cantidad, $precio, $cantidad_minima, $cantidad_maxima, '$imagen')";
-        if ($conn->query($sql) === TRUE) {
+        if (isset($_POST['agregar_producto'])) {
+            $stmt = $conn->prepare("INSERT INTO productos (nombre, descripcion, cantidad, precio, cantidad_minima, cantidad_maxima, imagen) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssiddis", $nombre, $descripcion, $cantidad, $precio, $cantidad_minima, $cantidad_maxima, $imagen);
+        } elseif (isset($_POST['editar_producto'])) {
+            $id = (int)$_POST['id'];
+            $stmt = $conn->prepare("UPDATE productos SET nombre=?, descripcion=?, cantidad=?, precio=?, cantidad_minima=?, cantidad_maxima=?, imagen=? WHERE id=?");
+            $stmt->bind_param("ssiddisi", $nombre, $descripcion, $cantidad, $precio, $cantidad_minima, $cantidad_maxima, $imagen, $id);
+        }
+
+        if ($stmt->execute()) {
             header("Location: inventario.php");
             exit();
         } else {
@@ -54,54 +56,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['agregar_producto'])) {
     }
 }
 
-// Editar producto
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['editar_producto'])) {
-    $id = (int)$_POST['id'];
-    $nombre = $conn->real_escape_string($_POST['nombre']);
-    $descripcion = $conn->real_escape_string($_POST['descripcion']);
-    $cantidad = (int)$_POST['cantidad'];
-    $precio = (float)$_POST['precio'];
-    $cantidad_minima = (int)$_POST['cantidad_minima'];
-    $cantidad_maxima = (int)$_POST['cantidad_maxima'];
-
-    if ($cantidad < $cantidad_minima || $cantidad > $cantidad_maxima) {
-        $mensaje = "La cantidad debe estar entre $cantidad_minima y $cantidad_maxima.";
-    } else {
-        $imagen = null;
-        if (!empty($_FILES['imagen']['name'])) {
-            $imagen = 'imagenes/' . basename($_FILES['imagen']['name']);
-            move_uploaded_file($_FILES['imagen']['tmp_name'], $imagen);
-        }
-
-        $sql = "UPDATE productos SET 
-                    nombre='$nombre', 
-                    descripcion='$descripcion', 
-                    cantidad=$cantidad, 
-                    precio=$precio,
-                    cantidad_minima=$cantidad_minima,
-                    cantidad_maxima=$cantidad_maxima";
-        if ($imagen) {
-            $sql .= ", imagen='$imagen'";
-        }
-        $sql .= " WHERE id=$id";
-
-        if ($conn->query($sql) === TRUE) {
-            $mensaje = "Producto actualizado correctamente.";
-        } else {
-            $mensaje = "Error al actualizar: " . $conn->error;
-        }
-    }
-}
-
 // Obtener término de búsqueda si existe
 $buscar = isset($_GET['buscar']) ? $conn->real_escape_string($_GET['buscar']) : '';
-
-// Paginación
-$productos_por_pagina = 16; // Aumentamos la cantidad de productos por página
+$productos_por_pagina = 16;
 $pagina_actual = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
 $offset = ($pagina_actual - 1) * $productos_por_pagina;
 
-// Modificar la consulta SQL para incluir el filtro y la paginación
 $sql = "SELECT * FROM productos";
 if ($buscar) {
     $sql .= " WHERE nombre LIKE '%$buscar%' OR descripcion LIKE '%$buscar%'";
@@ -109,7 +69,6 @@ if ($buscar) {
 $sql .= " ORDER BY nombre ASC LIMIT $productos_por_pagina OFFSET $offset";
 $result = $conn->query($sql);
 
-// Contar el total de productos para la paginación
 $sql_total = "SELECT COUNT(*) as total FROM productos";
 if ($buscar) {
     $sql_total .= " WHERE nombre LIKE '%$buscar%' OR descripcion LIKE '%$buscar%'";
@@ -118,7 +77,6 @@ $result_total = $conn->query($sql_total);
 $total_productos = $result_total->fetch_assoc()['total'];
 $total_paginas = ceil($total_productos / $productos_por_pagina);
 
-// Obtener producto para editar
 $producto_editar = null;
 if (isset($_GET['editar'])) {
     $id_editar = (int)$_GET['editar'];
@@ -127,7 +85,6 @@ if (isset($_GET['editar'])) {
     $producto_editar = $result_editar->fetch_assoc();
 }
 
-// Eliminar producto (con AJAX)
 if (isset($_GET['eliminar'])) {
     $id_eliminar = (int)$_GET['eliminar'];
     $sql_eliminar = "DELETE FROM productos WHERE id=$id_eliminar";
@@ -160,11 +117,16 @@ $conn->close();
             justify-content: space-between;
             align-items: center;
             padding: 20px;
-            background-color: #4CAF50;
-            color: white;
+            background-color: white;
+            color: #333;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
         .header-container img {
             height: 50px;
+        }
+        .titulo-inventario {
+            font-size: 24px;
+            font-weight: bold;
         }
         .inventario-container {
             display: flex;
@@ -316,17 +278,45 @@ $conn->close();
         .pagination .active {
             background-color: #4CAF50;
         }
+        .search-container {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .search-container input {
+            padding: 10px;
+            width: 300px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .search-container button {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .search-container button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
     <div class="header-container">
+        <img src="https://i.postimg.cc/h4bhp1mJ/Mizaki-Ajuste-Logotipo-Mesa-de-trabajo-1.png" alt="Logotipo de Mizaki Campestre" class="logotipo">
         <h2 class="titulo-inventario">Inventario Mizaki Campestre (prototipo)</h2>
-        <img src="https://i.postimg.cc/4dzrqM1Z/logo-mizaki-reducido.jpg" alt="Logotipo de Mizaki Campestre" class="logotipo">
         <a href="logout.php" class="logout-button">Cerrar sesión</a>
     </div>
 
     <div class="inventario-container">
         <div class="form-list-container">
+            <div class="search-container">
+                <form action="inventario.php" method="GET">
+                    <input type="text" name="buscar" placeholder="Buscar producto..." value="<?php echo htmlspecialchars($buscar); ?>">
+                    <button type="submit">Buscar</button>
+                </form>
+            </div>
+
             <button class="add-product-button" onclick="openModal()">Agregar Producto</button>
 
             <!-- Modal Formulario -->
@@ -428,7 +418,7 @@ $conn->close();
                     .then(data => {
                         if (data.success) {
                             alert("Producto eliminado exitosamente.");
-                            location.reload(); // Recargar la página
+                            location.reload();
                         } else {
                             alert("Error al eliminar producto.");
                         }
@@ -436,7 +426,6 @@ $conn->close();
             }
         }
 
-        // Cerrar el modal al hacer clic fuera de él
         window.onclick = function(event) {
             if (event.target == document.getElementById('modalForm')) {
                 document.getElementById('modalForm').style.display = "none";
