@@ -133,24 +133,93 @@ $conn->close();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventario</title>
-    <link rel="stylesheet" href="styles.css">
-    <script>
-        function eliminarProducto(id) {
-            if (confirm("¿Estás seguro de eliminar este producto?")) {
-                var xhr = new XMLHttpRequest();
-                xhr.open("GET", "inventario.php?eliminar=" + id, true);
-                xhr.onload = function() {
-                    var response = JSON.parse(xhr.responseText);
-                    if (xhr.status === 200 && response.success) {
-                        document.getElementById("producto-" + id).remove();
-                    } else {
-                        alert("Error al eliminar el producto.");
-                    }
-                };
-                xhr.send();
-            }
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: space-between;
         }
-    </script>
+        .inventario-container {
+            display: flex;
+            width: 100%;
+        }
+        .form-list-container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            flex-direction: column;
+        }
+        .form-container {
+            flex: 1;
+            margin-right: 20px;
+            padding: 20px;
+            background-color: #f4f4f4;
+            border-radius: 8px;
+        }
+        .productos-container {
+            flex: 2;
+            padding: 20px;
+        }
+        .productos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .producto-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            text-align: center;
+        }
+        .producto-img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            font-weight: bold;
+        }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .input-group textarea {
+            resize: vertical;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .logout-button {
+            background-color: #f44336;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+        }
+        .logout-button:hover {
+            background-color: #da190b;
+        }
+    </style>
 </head>
 <body>
     <div class="inventario-container">
@@ -176,64 +245,74 @@ $conn->close();
                     <input type="hidden" name="id" value="<?php echo $producto_editar['id'] ?? ''; ?>">
                     <div class="input-group">
                         <label for="nombre">Nombre del Producto</label>
-                        <input type="text" id="nombre" name="nombre" value="<?php echo $producto_editar['nombre'] ?? ''; ?>" required>
+                        <input type="text" name="nombre" id="nombre" value="<?php echo $producto_editar['nombre'] ?? ''; ?>" required>
                     </div>
                     <div class="input-group">
                         <label for="descripcion">Descripción</label>
-                        <textarea id="descripcion" name="descripcion" required><?php echo $producto_editar['descripcion'] ?? ''; ?></textarea>
+                        <textarea name="descripcion" id="descripcion" required><?php echo $producto_editar['descripcion'] ?? ''; ?></textarea>
                     </div>
                     <div class="input-group">
                         <label for="cantidad">Cantidad</label>
-                        <input type="number" id="cantidad" name="cantidad" value="<?php echo $producto_editar['cantidad'] ?? ''; ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="cantidad_minima">Cantidad Mínima</label>
-                        <input type="number" id="cantidad_minima" name="cantidad_minima" value="<?php echo $producto_editar['cantidad_minima'] ?? ''; ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="cantidad_maxima">Cantidad Máxima</label>
-                        <input type="number" id="cantidad_maxima" name="cantidad_maxima" value="<?php echo $producto_editar['cantidad_maxima'] ?? ''; ?>" required>
+                        <input type="number" name="cantidad" id="cantidad" value="<?php echo $producto_editar['cantidad'] ?? ''; ?>" required>
                     </div>
                     <div class="input-group">
                         <label for="precio">Precio</label>
-                        <input type="number" step="0.01" id="precio" name="precio" value="<?php echo $producto_editar['precio'] ?? ''; ?>" required>
+                        <input type="number" name="precio" id="precio" value="<?php echo $producto_editar['precio'] ?? ''; ?>" required>
                     </div>
                     <div class="input-group">
-                        <label for="imagen">Subir Imagen</label>
-                        <input type="file" id="imagen" name="imagen">
+                        <label for="cantidad_minima">Cantidad Mínima</label>
+                        <input type="number" name="cantidad_minima" id="cantidad_minima" value="<?php echo $producto_editar['cantidad_minima'] ?? ''; ?>" required>
                     </div>
-                    <button type="submit" name="<?php echo $producto_editar ? 'editar_producto' : 'agregar_producto'; ?>">
-                        <?php echo $producto_editar ? 'Guardar Cambios' : 'Agregar Producto'; ?>
+                    <div class="input-group">
+                        <label for="cantidad_maxima">Cantidad Máxima</label>
+                        <input type="number" name="cantidad_maxima" id="cantidad_maxima" value="<?php echo $producto_editar['cantidad_maxima'] ?? ''; ?>" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="imagen">Imagen</label>
+                        <input type="file" name="imagen" id="imagen">
+                    </div>
+                    <button type="submit" name="<?php echo isset($producto_editar) ? 'editar_producto' : 'agregar_producto'; ?>">
+                        <?php echo isset($producto_editar) ? 'Actualizar Producto' : 'Agregar Producto'; ?>
                     </button>
                 </form>
             </div>
         </div>
 
-        <!-- Listado de Productos -->
+        <!-- Lista de productos -->
         <div class="productos-container">
-            <h3>Lista de Productos</h3>
             <div class="productos-grid">
                 <?php while ($row = $result->fetch_assoc()): ?>
-                    <div class="producto-card" id="producto-<?php echo $row['id']; ?>">
-                        <div class="producto-img-container">
-                            <?php if ($row['imagen']): ?>
-                                <img src="<?php echo $row['imagen']; ?>" alt="Imagen del Producto" class="producto-img">
-                            <?php endif; ?>
-                        </div>
-                        <h4><?php echo $row['nombre']; ?></h4>
+                    <div class="producto-card">
+                        <img src="<?php echo $row['imagen'] ? $row['imagen'] : 'https://via.placeholder.com/150'; ?>" alt="Imagen de producto" class="producto-img">
+                        <h3><?php echo $row['nombre']; ?></h3>
                         <p><?php echo $row['descripcion']; ?></p>
-                        <div class="producto-info">
-                            <span>Cantidad: <?php echo $row['cantidad']; ?></span>
-                            <span>Precio: $<?php echo $row['precio']; ?></span>
-                        </div>
-                        <div class="producto-actions">
-                            <a href="inventario.php?editar=<?php echo $row['id']; ?>" class="edit-button">Editar</a>
-                            <a href="javascript:void(0);" onclick="eliminarProducto(<?php echo $row['id']; ?>)" class="delete-button">Eliminar</a>
-                        </div>
+                        <p><strong>Precio:</strong> $<?php echo number_format($row['precio'], 2); ?></p>
+                        <p><strong>Cantidad:</strong> <?php echo $row['cantidad']; ?></p>
+                        <p><strong>Cantidad mínima:</strong> <?php echo $row['cantidad_minima']; ?></p>
+                        <p><strong>Cantidad máxima:</strong> <?php echo $row['cantidad_maxima']; ?></p>
+                        <a href="inventario.php?editar=<?php echo $row['id']; ?>">Editar</a> |
+                        <a href="javascript:void(0);" onclick="eliminarProducto(<?php echo $row['id']; ?>)">Eliminar</a>
                     </div>
                 <?php endwhile; ?>
             </div>
         </div>
     </div>
+
+    <script>
+        function eliminarProducto(id) {
+            if (confirm("¿Estás seguro de que deseas eliminar este producto?")) {
+                fetch('inventario.php?eliminar=' + id)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert("Producto eliminado exitosamente.");
+                            location.reload(); // Recargar la página
+                        } else {
+                            alert("Error al eliminar producto.");
+                        }
+                    });
+            }
+        }
+    </script>
 </body>
 </html>
