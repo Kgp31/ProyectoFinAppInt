@@ -96,12 +96,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['editar_producto'])) {
 // Obtener término de búsqueda si existe
 $buscar = isset($_GET['buscar']) ? $conn->real_escape_string($_GET['buscar']) : '';
 
-// Modificar la consulta SQL para incluir el filtro
+// Paginación
+$productos_por_pagina = 16; // Aumentamos la cantidad de productos por página
+$pagina_actual = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
+$offset = ($pagina_actual - 1) * $productos_por_pagina;
+
+// Modificar la consulta SQL para incluir el filtro y la paginación
 $sql = "SELECT * FROM productos";
 if ($buscar) {
     $sql .= " WHERE nombre LIKE '%$buscar%' OR descripcion LIKE '%$buscar%'";
 }
+$sql .= " ORDER BY nombre ASC LIMIT $productos_por_pagina OFFSET $offset";
 $result = $conn->query($sql);
+
+// Contar el total de productos para la paginación
+$sql_total = "SELECT COUNT(*) as total FROM productos";
+if ($buscar) {
+    $sql_total .= " WHERE nombre LIKE '%$buscar%' OR descripcion LIKE '%$buscar%'";
+}
+$result_total = $conn->query($sql_total);
+$total_productos = $result_total->fetch_assoc()['total'];
+$total_paginas = ceil($total_productos / $productos_por_pagina);
 
 // Obtener producto para editar
 $producto_editar = null;
@@ -135,32 +150,45 @@ $conn->close();
     <title>Inventario</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
+            background-color: #f0f2f5;
+        }
+        .header-container {
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background-color: #4CAF50;
+            color: white;
+        }
+        .header-container img {
+            height: 50px;
         }
         .inventario-container {
             display: flex;
-            width: 100%;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
         }
         .form-list-container {
+            width: 100%;
+            max-width: 1200px;
             display: flex;
-            flex: 1;
-            padding: 20px;
             flex-direction: column;
+            align-items: center;
         }
         .form-container {
-            flex: 1;
-            margin-right: 20px;
+            width: 100%;
+            background-color: white;
             padding: 20px;
-            background-color: #f4f4f4;
             border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         .productos-container {
-            flex: 2;
-            padding: 20px;
+            width: 100%;
         }
         .productos-grid {
             display: grid;
@@ -168,15 +196,19 @@ $conn->close();
             gap: 20px;
         }
         .producto-card {
-            background: #fff;
+            background: white;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
             text-align: center;
+            transition: transform 0.2s;
+        }
+        .producto-card:hover {
+            transform: scale(1.05);
         }
         .producto-img {
             width: 100%;
-            height: 150px;
+            height: 200px;
             object-fit: cover;
             border-radius: 8px;
             margin-bottom: 15px;
@@ -219,86 +251,176 @@ $conn->close();
         .logout-button:hover {
             background-color: #da190b;
         }
+        .add-product-button {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .add-product-button:hover {
+            background-color: #0056b3;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination a {
+            margin: 0 5px;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .pagination a:hover {
+            background-color: #0056b3;
+        }
+        .pagination .active {
+            background-color: #4CAF50;
+        }
     </style>
 </head>
 <body>
+    <div class="header-container">
+        <h2 class="titulo-inventario">Inventario Mizaki Campestre (prototipo)</h2>
+        <img src="https://i.postimg.cc/4dzrqM1Z/logo-mizaki-reducido.jpg" alt="Logotipo de Mizaki Campestre" class="logotipo">
+        <a href="logout.php" class="logout-button">Cerrar sesión</a>
+    </div>
+
     <div class="inventario-container">
         <div class="form-list-container">
-            <div class="form-container">
-                <div class="header-container">
-                    <h2 class="titulo-inventario">Inventario Mizaki Campestre (prototipo)</h2>
-                    <img src="https://i.postimg.cc/4dzrqM1Z/logo-mizaki-reducido.jpg" alt="Logotipo de Mizaki Campestre" class="logotipo">
-                    <a href="logout.php" class="logout-button">Cerrar sesión</a>
-                </div>
+            <button class="add-product-button" onclick="openModal()">Agregar Producto</button>
 
-                <!-- Formulario de Búsqueda -->
-                <div class="search-container">
-                    <form action="inventario.php" method="GET">
-                        <input type="text" name="buscar" placeholder="Buscar por nombre o descripción" value="<?php echo isset($_GET['buscar']) ? $_GET['buscar'] : ''; ?>">
-                        <button type="submit">Buscar</button>
+            <!-- Modal Formulario -->
+            <div id="modalForm" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeModal()">&times;</span>
+                    <form id="productForm" action="inventario.php" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="id" id="productId" value="">
+                        <div class="input-group">
+                            <label for="nombre">Nombre del Producto</label>
+                            <input type="text" name="nombre" id="nombre" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="descripcion">Descripción</label>
+                            <textarea name="descripcion" id="descripcion" required></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label for="cantidad">Cantidad</label>
+                            <input type="number" name="cantidad" id="cantidad" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="precio">Precio</label>
+                            <input type="number" name="precio" id="precio" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="cantidad_minima">Cantidad Mínima</label>
+                            <input type="number" name="cantidad_minima" id="cantidad_minima" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="cantidad_maxima">Cantidad Máxima</label>
+                            <input type="number" name="cantidad_maxima" id="cantidad_maxima" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="imagen">Imagen</label>
+                            <input type="file" name="imagen" id="imagen">
+                        </div>
+                        <button type="submit" name="agregar_producto" id="submitButton">Agregar Producto</button>
                     </form>
                 </div>
-
-                <?php if (isset($mensaje)) { echo "<p class='mensaje'>$mensaje</p>"; } ?>
-
-                <form action="inventario.php" method="POST" enctype="multipart/form-data">
-                    <input type="hidden" name="id" value="<?php echo $producto_editar['id'] ?? ''; ?>">
-                    <div class="input-group">
-                        <label for="nombre">Nombre del Producto</label>
-                        <input type="text" name="nombre" id="nombre" value="<?php echo $producto_editar['nombre'] ?? ''; ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="descripcion">Descripción</label>
-                        <textarea name="descripcion" id="descripcion" required><?php echo $producto_editar['descripcion'] ?? ''; ?></textarea>
-                    </div>
-                    <div class="input-group">
-                        <label for="cantidad">Cantidad</label>
-                        <input type="number" name="cantidad" id="cantidad" value="<?php echo $producto_editar['cantidad'] ?? ''; ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="precio">Precio</label>
-                        <input type="number" name="precio" id="precio" value="<?php echo $producto_editar['precio'] ?? ''; ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="cantidad_minima">Cantidad Mínima</label>
-                        <input type="number" name="cantidad_minima" id="cantidad_minima" value="<?php echo $producto_editar['cantidad_minima'] ?? ''; ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="cantidad_maxima">Cantidad Máxima</label>
-                        <input type="number" name="cantidad_maxima" id="cantidad_maxima" value="<?php echo $producto_editar['cantidad_maxima'] ?? ''; ?>" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="imagen">Imagen</label>
-                        <input type="file" name="imagen" id="imagen">
-                    </div>
-                    <button type="submit" name="<?php echo isset($producto_editar) ? 'editar_producto' : 'agregar_producto'; ?>">
-                        <?php echo isset($producto_editar) ? 'Actualizar Producto' : 'Agregar Producto'; ?>
-                    </button>
-                </form>
             </div>
-        </div>
 
-        <!-- Lista de productos -->
-        <div class="productos-container">
-            <div class="productos-grid">
-                <?php while ($row = $result->fetch_assoc()): ?>
-                    <div class="producto-card">
-                        <img src="<?php echo $row['imagen'] ? $row['imagen'] : 'https://via.placeholder.com/150'; ?>" alt="Imagen de producto" class="producto-img">
-                        <h3><?php echo $row['nombre']; ?></h3>
-                        <p><?php echo $row['descripcion']; ?></p>
-                        <p><strong>Precio:</strong> $<?php echo number_format($row['precio'], 2); ?></p>
-                        <p><strong>Cantidad:</strong> <?php echo $row['cantidad']; ?></p>
-                        <p><strong>Cantidad mínima:</strong> <?php echo $row['cantidad_minima']; ?></p>
-                        <p><strong>Cantidad máxima:</strong> <?php echo $row['cantidad_maxima']; ?></p>
-                        <a href="inventario.php?editar=<?php echo $row['id']; ?>">Editar</a> |
-                        <a href="javascript:void(0);" onclick="eliminarProducto(<?php echo $row['id']; ?>)">Eliminar</a>
-                    </div>
-                <?php endwhile; ?>
+            <!-- Lista de productos -->
+            <div class="productos-container">
+                <div class="productos-grid">
+                    <?php while ($row = $result->fetch_assoc()): ?>
+                        <div class="producto-card">
+                            <img src="<?php echo $row['imagen'] ? $row['imagen'] : 'https://via.placeholder.com/150'; ?>" alt="Imagen de producto" class="producto-img">
+                            <h3><?php echo $row['nombre']; ?></h3>
+                            <p><?php echo $row['descripcion']; ?></p>
+                            <p><strong>Precio:</strong> $<?php echo number_format($row['precio'], 2); ?></p>
+                            <p><strong>Cantidad:</strong> <?php echo $row['cantidad']; ?></p>
+                            <p><strong>Cantidad mínima:</strong> <?php echo $row['cantidad_minima']; ?></p>
+                            <p><strong>Cantidad máxima:</strong> <?php echo $row['cantidad_maxima']; ?></p>
+                            <a href="javascript:void(0);" onclick="editProduct(<?php echo $row['id']; ?>, '<?php echo $row['nombre']; ?>', '<?php echo $row['descripcion']; ?>', <?php echo $row['cantidad']; ?>, <?php echo $row['precio']; ?>, <?php echo $row['cantidad_minima']; ?>, <?php echo $row['cantidad_maxima']; ?>)">Editar</a> |
+                            <a href="javascript:void(0);" onclick="eliminarProducto(<?php echo $row['id']; ?>)">Eliminar</a>
+                        </div>
+                    <?php endwhile; ?>
+                </div>
+            </div>
+
+            <!-- Paginación -->
+            <div class="pagination">
+                <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                    <a href="inventario.php?pagina=<?php echo $i; ?>" class="<?php echo $i == $pagina_actual ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                <?php endfor; ?>
             </div>
         </div>
     </div>
 
     <script>
+        function openModal() {
+            document.getElementById('modalForm').style.display = 'block';
+            document.getElementById('productForm').reset();
+            document.getElementById('submitButton').name = 'agregar_producto';
+            document.getElementById('submitButton').textContent = 'Agregar Producto';
+        }
+
+        function closeModal() {
+            document.getElementById('modalForm').style.display = 'none';
+        }
+
+        function editProduct(id, nombre, descripcion, cantidad, precio, cantidad_minima, cantidad_maxima) {
+            document.getElementById('modalForm').style.display = 'block';
+            document.getElementById('productId').value = id;
+            document.getElementById('nombre').value = nombre;
+            document.getElementById('descripcion').value = descripcion;
+            document.getElementById('cantidad').value = cantidad;
+            document.getElementById('precio').value = precio;
+            document.getElementById('cantidad_minima').value = cantidad_minima;
+            document.getElementById('cantidad_maxima').value = cantidad_maxima;
+            document.getElementById('submitButton').name = 'editar_producto';
+            document.getElementById('submitButton').textContent = 'Actualizar Producto';
+        }
+
         function eliminarProducto(id) {
             if (confirm("¿Estás seguro de que deseas eliminar este producto?")) {
                 fetch('inventario.php?eliminar=' + id)
@@ -311,6 +433,13 @@ $conn->close();
                             alert("Error al eliminar producto.");
                         }
                     });
+            }
+        }
+
+        // Cerrar el modal al hacer clic fuera de él
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('modalForm')) {
+                document.getElementById('modalForm').style.display = "none";
             }
         }
     </script>
