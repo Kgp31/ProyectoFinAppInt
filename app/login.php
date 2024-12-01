@@ -4,34 +4,33 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 session_start();
+include '../app/database.php';
 
-// Incluir el archivo de conexión a la base de datos
-include '../app/database.php'; // Incluir el archivo de conexión
+$conn = getDbConnection();
 
-// Obtener la conexión a la base de datos
-$conn = getDbConnection(); // Obtiene la conexión reutilizable
-
-// Comprobamos si es un envío de formulario POST
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
-    $password = md5($_POST['password']); // Encriptar la contraseña
+    $password = md5($_POST['password']);
 
-    // Comprobamos en la base de datos si existe el usuario
-    $sql = "SELECT * FROM usuarios WHERE username='$username' AND password='$password'";
-    $result = $conn->query($sql);
+    $stmt = $conn->prepare("SELECT * FROM usuarios WHERE username = ?");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
     if ($result->num_rows > 0) {
-        // Si el usuario existe, iniciamos sesión
         $user = $result->fetch_assoc();
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['role'] = $user['role'];
 
-        // Redirigir al inventario.php
-        header("Location: ../app/inventario.php");
-        exit();
+        if ($password == $user['password']) {
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'];
+            header("Location: http://localhost:8888/app/inventario.php");
+            exit();
+        } else {
+            header("Location: http://localhost:8888/public/login.html?error=1");
+            exit();
+        }
     } else {
-        // Si las credenciales son incorrectas, redirigir con un error
-        header("Location: ../public/login.html?error=1");
+        header("Location: http://localhost:8888/public/login.html?error=1");
         exit();
     }
 }
