@@ -24,10 +24,10 @@ if ($conn->connect_error) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nombre = $conn->real_escape_string($_POST['nombre']);
     $descripcion = $conn->real_escape_string($_POST['descripcion']);
-    $cantidad = (int)$_POST['cantidad'];
+    $cantidad = (float)$_POST['cantidad'];
     $precio = (float)$_POST['precio'];
-    $cantidad_minima = (int)$_POST['cantidad_minima'];
-    $cantidad_maxima = (int)$_POST['cantidad_maxima'];
+    $cantidad_minima = (float)$_POST['cantidad_minima'];
+    $cantidad_maxima = (float)$_POST['cantidad_maxima'];
     $imagen = null;
 
     if (!empty($_FILES['imagen']['name'])) {
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         move_uploaded_file($_FILES['imagen']['tmp_name'], $imagen);
     }
 
-    if ($cantidad < $cantidad_minima || $cantidad > $cantidad_maxima) {
+    if ($cantidad > $cantidad_maxima) {
         $mensaje = "La cantidad debe estar entre $cantidad_minima y $cantidad_maxima.";
     } else {
         if (isset($_POST['agregar_producto'])) {
@@ -144,7 +144,7 @@ $conn->close();
         .form-container {
             width: 100%;
             background-color: white;
-            padding: 20px;
+            padding: 40px;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             margin-bottom: 20px;
@@ -184,7 +184,7 @@ $conn->close();
         }
         .input-group input, .input-group textarea {
             width: 100%;
-            padding: 8px;
+            padding: 12px;
             margin-top: 5px;
             border: 1px solid #ddd;
             border-radius: 5px;
@@ -193,7 +193,7 @@ $conn->close();
             resize: vertical;
         }
         button {
-            padding: 10px 20px;
+            padding: 15px 20px;
             background-color: #4CAF50;
             color: white;
             border: none;
@@ -241,10 +241,10 @@ $conn->close();
         .modal-content {
             background-color: #fefefe;
             margin: 5% auto;
-            padding: 20px;
+            padding: 40px;
             border: 1px solid #888;
-            width: 80%;
-            max-width: 500px;
+            width: 60%;
+            max-width: 800px;
             border-radius: 8px;
         }
         .close {
@@ -299,6 +299,21 @@ $conn->close();
         .search-container button:hover {
             background-color: #0056b3;
         }
+        .error-message {
+            color: #f44336;
+            margin-top: 20px;
+            font-size: 16px;
+            text-align: center;
+        }
+        .producto-card[data-cantidad="low"] {
+            background-color: #ffe0e0;
+        }
+        .producto-card[data-cantidad="medium"] {
+            background-color: #fff5cc;
+        }
+        .producto-card[data-cantidad="high"] {
+            background-color: #e0f7e0;
+        }
     </style>
 </head>
 <body>
@@ -335,19 +350,19 @@ $conn->close();
                         </div>
                         <div class="input-group">
                             <label for="cantidad">Cantidad</label>
-                            <input type="number" name="cantidad" id="cantidad" required>
+                            <input type="number" step="0.01" name="cantidad" id="cantidad" required>
                         </div>
                         <div class="input-group">
                             <label for="precio">Precio</label>
-                            <input type="number" name="precio" id="precio" required>
+                            <input type="number" step="0.01" name="precio" id="precio" required>
                         </div>
                         <div class="input-group">
                             <label for="cantidad_minima">Cantidad Mínima</label>
-                            <input type="number" name="cantidad_minima" id="cantidad_minima" required>
+                            <input type="number" step="0.01" name="cantidad_minima" id="cantidad_minima" required>
                         </div>
                         <div class="input-group">
                             <label for="cantidad_maxima">Cantidad Máxima</label>
-                            <input type="number" name="cantidad_maxima" id="cantidad_maxima" required>
+                            <input type="number" step="0.01" name="cantidad_maxima" id="cantidad_maxima" required>
                         </div>
                         <div class="input-group">
                             <label for="imagen">Imagen</label>
@@ -361,8 +376,21 @@ $conn->close();
             <!-- Lista de productos -->
             <div class="productos-container">
                 <div class="productos-grid">
-                    <?php while ($row = $result->fetch_assoc()): ?>
-                        <div class="producto-card">
+                    <?php while ($row = $result->fetch_assoc()): 
+                        $cantidad = $row['cantidad'];
+                        $cantidad_minima = $row['cantidad_minima'];
+                        $cantidad_maxima = $row['cantidad_maxima'];
+                        $color = '';
+
+                        if ($cantidad <= $cantidad_minima) {
+                            $color = 'low';
+                        } elseif ($cantidad >= $cantidad_maxima) {
+                            $color = 'high';
+                        } else {
+                            $color = 'medium';
+                        }
+                    ?>
+                        <div class="producto-card" data-cantidad="<?php echo $color; ?>">
                             <img src="<?php echo $row['imagen'] ? $row['imagen'] : 'https://via.placeholder.com/150'; ?>" alt="Imagen de producto" class="producto-img">
                             <h3><?php echo $row['nombre']; ?></h3>
                             <p><?php echo $row['descripcion']; ?></p>
@@ -385,6 +413,10 @@ $conn->close();
             </div>
         </div>
     </div>
+
+    <?php if (isset($mensaje)): ?>
+        <p class="error-message"><?php echo $mensaje; ?></p>
+    <?php endif; ?>
 
     <script>
         function openModal() {
