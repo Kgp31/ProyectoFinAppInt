@@ -1,54 +1,38 @@
 <?php
+// Iniciar la sesión
 session_start();
-require_once '../controllers/ProductController.php';  // Incluir el controlador de productos
 
-// Obtener la URI solicitada
+// Incluir el controlador de productos y el middleware de autenticación
+require_once '../controllers/ProductController.php';
+require_once '../middlewares/authmiddleware.php';
+
+// Obtener la URI de la solicitud
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$base_path = '/inventariomizaki/public/';
+// Definir la ruta base
+$base_path = '/public/';
+// Eliminar la ruta base de la URI
 $uri = str_replace($base_path, '', $uri);
 
-// Verificar la ruta y redirigir a login.php si es necesario
-require_once '../middlewares/authmiddleware.php'; 
-checkAuth();
+// Verificar la autenticación para todas las rutas excepto 'login' y la raíz
+if ($uri !== 'login' && $uri !== '') {
+    checkAuth();
+}
 
-// Rutas del controlador de productos
+// Manejar las diferentes rutas usando una estructura switch
 switch ($uri) {
-    case 'productos':  // Muestra la lista de productos
-        $controller = new ProductController();
-        $controller->index();  // Llama a la función index del controlador
+    case 'login':
+        // Incluir el archivo de login
+        include '../app/login.php';
         break;
 
-    case 'productos/crear':  // Formulario de creación de producto
-        $controller = new ProductController();
-        $controller->create();  // Llama a la función create del controlador
-        break;
-
-    case 'productos/editar':  // Formulario de edición de producto
-        if (isset($_GET['id'])) {
-            $controller = new ProductController();
-            $controller->edit($_GET['id']);  // Llama a la función edit pasando el ID
-        } else {
-            http_response_code(400);  // Error si no se pasa el ID
-            echo "ID de producto no proporcionado.";
-        }
-        break;
-
-    case 'productos/eliminar':  // Eliminar producto
-        if (isset($_GET['id'])) {
-            $controller = new ProductController();
-            $controller->delete($_GET['id']);  // Llama a la función delete pasando el ID
-        } else {
-            http_response_code(400);  // Error si no se pasa el ID
-            echo "ID de producto no proporcionado.";
-        }
-        break;
-
-    case 'login.html':  // Ruta para login
-        include '../app/login.php';  // Incluye la página de login
+    case '':
+        // Redirigir a la página de inicio de sesión si la URI está vacía
+        header("Location: http://localhost:8888/public/login.html");
         break;
 
     default:
-        http_response_code(404);  // Página no encontrada
+        // Enviar un código de respuesta 404 si la ruta no se encuentra
+        http_response_code(404);
         echo "Página no encontrada.";
         break;
 }
